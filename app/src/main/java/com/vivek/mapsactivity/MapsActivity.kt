@@ -6,13 +6,19 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
+import android.location.LocationRequest
 import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.provider.Settings
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -89,28 +95,62 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     }
 
+    /*
+    * fused location
+    * */
     @SuppressLint("MissingPermission")
     private fun setUpLocationListen() {
-        val lm = getSystemService(LOCATION_SERVICE) as LocationManager
-        val providers = lm.getProviders(true)
+        val fl = LocationServices.getFusedLocationProviderClient(this)
+        val locationRequest = com.google.android.gms.location.LocationRequest()
+            .setInterval(2000)
+            .setFastestInterval(2000)
+            .setSmallestDisplacement(1f)
+            .setPriority(PRIORITY_HIGH_ACCURACY)
 
-        var l: Location? = null
-        for (i in providers.indices.reversed()) {
-            l = lm.getLastKnownLocation(providers[i])
-            if (l != null) {
-                break
-            }
-        }
-
-        l?.let {
-            if (::mMap.isInitialized) {
-                val sydney = LatLng(it.latitude, it.longitude)
-                mMap.addMarker(MarkerOptions().position(sydney).title("Current location"))
-                mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
-            }
-        }
+        fl.requestLocationUpdates(locationRequest,
+            object :LocationCallback(){
+                override fun onLocationResult(p0: LocationResult) {
+                    super.onLocationResult(p0)
+                    for(location in p0.locations){
+                        if (::mMap.isInitialized) {
+                            val latlong = LatLng(location.latitude,location.longitude)
+                            mMap.addMarker(MarkerOptions().position(latlong).title("Current location"))
+                            mMap.moveCamera(CameraUpdateFactory.newLatLng(latlong))
+                        }
+                    }
+                }
+        },
+            Looper.myLooper()!!
+        )
 
     }
+
+
+    /*
+    * last known location
+    * */
+        /* @SuppressLint("MissingPermission")
+         private fun setUpLocationListen() {
+             val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+             val providers = lm.getProviders(true)
+
+             var l: Location? = null
+             for (i in providers.indices.reversed()) {
+                 l = lm.getLastKnownLocation(providers[i])
+                 if (l != null) {
+                     break
+                 }
+             }
+
+             l?.let {
+                 if (::mMap.isInitialized) {
+                     val sydney = LatLng(it.latitude, it.longitude)
+                     mMap.addMarker(MarkerOptions().position(sydney).title("Current location"))
+                     mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
+                 }
+             }
+
+         }*/
 
     /**
      * Manipulates the map once available.
