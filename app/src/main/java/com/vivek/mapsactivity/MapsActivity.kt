@@ -1,6 +1,16 @@
 package com.vivek.mapsactivity
 
+import android.annotation.SuppressLint
+import android.content.DialogInterface
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -17,6 +27,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
     private lateinit var binding: ActivityMapsBinding
 
+    val lm by lazy {
+        getSystemService(LOCATION_SERVICE) as LocationManager
+    }
+
+    @RequiresApi(Build.VERSION_CODES.M)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -27,6 +42,74 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
+
+        //permission to get the location
+        requestFineLocation()
+
+        //checking enable location service
+        if (isLocationEnabled()) setUpLocationListen()
+        else showGps()
+    }
+
+    fun isLocationEnabled():Boolean{
+        return lm.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+    }
+
+    /*
+    * for gps enable dialog
+    * */
+    fun showGps(){
+        AlertDialog.Builder(this).setTitle("Enable Gps").setMessage("Gps required for map").setCancelable(false).setPositiveButton("Ok"){ dialogInterface: DialogInterface, i: Int ->
+            startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            dialogInterface.dismiss()
+        }.show()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    private fun requestFineLocation() {
+        this.requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), 999)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 999) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                setUpLocationListen()
+            } else {
+                //request again
+                requestFineLocation()
+            }
+        }
+
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun setUpLocationListen() {
+        val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+        val providers = lm.getProviders(true)
+
+        var l: Location? = null
+        for (i in providers.indices.reversed()) {
+            l = lm.getLastKnownLocation(providers[i])
+            if (l != null) {
+                break
+            }
+        }
+
+        l?.let {
+            if (::mMap.isInitialized) {
+                val sydney = LatLng(it.latitude, it.longitude)
+                mMap.addMarker(MarkerOptions().position(sydney).title("Current location"))
+                mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
+            }
+        }
+
     }
 
     /**
